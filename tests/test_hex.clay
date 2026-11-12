@@ -1,0 +1,17 @@
+// Tests for the hex brick. Run them from the brick's directory:
+//   clay tests/test_hex.clay
+// (a brick can be imported by its own name from inside its own directory)
+import("hex")
+
+failures = 0
+check = { |what, ok|
+    ok ifFalse { ("FAIL: " + what) println; failures = failures + 1 }
+}
+
+check value("greet", (Hex greet("world")) == "Hello, world!")
+
+(failures > 0) ifTrue {
+    (failures toString + " checks failed") println
+    System exit(1)
+}
+"hex tests passed" println

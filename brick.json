@@ -1,0 +1,7 @@
+{
+  "name": "hex",
+  "version": "0.1.0",
+  "description": "TODO: what hex does, in one line",
+  "main": "src/main.clay",
+  "deps": {}
+}
