@@ -1,13 +1,85 @@
-// hex -- TODO: what this brick does, in one line
+// hex -- Hex encoding, decoding and hexdumps for byte strings
 //
 // Usage:
 //   import("hex")
 //
-//   Hex greet("world") println      // Hello, world!
+//   Hex encode("Hello") println        // 48656c6c6f
+//   Hex decode("48656c6c6f") println   // Hello
+//   Hex dump(data) println             // xxd-style listing: offset, hex bytes, ASCII column
 //
 // Every brick shares one set of top-level names with the program that imports
 // it, so keep yours few and distinctive: typically just the objects you provide.
 
 Hex = Object clone {
-    greet(who) { "Hello, " + who + "!" }
+
+    digits = "0123456789abcdef"
+
+    // text -> hex
+    encode(data) {
+        parts = []
+        
+        data bytes each { |b| 
+            parts push((digits slice(b / 16, b / 16 + 1)) + (digits slice( b % 16, b % 16 + 1)))
+        }
+
+        parts join("")
+    }
+
+    // hex -> text
+    decode(data) {
+        (data length % 2 != 0) ifTrue { raise("hex decode: odd-length input") }
+
+        out = []
+        i = 0
+        { i < data length } whileTrue {
+            hi = digits indexOf(data slice(i, i + 1) lower)
+            lo = digits indexOf(data slice(i + 1, i + 2) lower)
+            ((hi < 0) || (lo < 0)) ifTrue { raise("hex decode: invalid digit near position ${i}") }
+            out push(hi * 16 + lo)
+            i = i + 2
+        }
+
+        String fromBytes(out)
+    }
+
+    // dump hex data
+    // xxd-style listing: "00000000: 4865 6c6c 6f  Hello", 16 bytes per line
+    dump(data) {
+        bytes = data bytes
+        lines = []
+        i = 0
+        { i < bytes size } whileTrue {
+            end = i + 16
+            (end > bytes size) ifTrue { end = bytes size }
+            chunk = bytes slice(i, end)
+
+            // 8-digit hex offset
+            off = ""
+            n = i
+            8 times { |k|
+                off = (digits slice(n % 16, n % 16 + 1)) + off
+                n = n / 16
+            }
+
+            // hex bytes in pairs, and the printable ASCII column
+            groups = []
+            ascii = ""
+            j = 0
+            { j < chunk size } whileTrue {
+                b = chunk at(j)
+                cell = (digits slice(b / 16, b / 16 + 1)) + (digits slice(b % 16, b % 16 + 1))
+                ((j % 2 == 0) && (j + 1 < chunk size)) ifTrue {
+                    c2 = chunk at(j + 1)
+                    cell = cell + (digits slice(c2 / 16, c2 / 16 + 1)) + (digits slice(c2 % 16, c2 % 16 + 1))
+                }
+                ((j % 2) == 0) ifTrue { groups push(cell) }
+                ((b >= 32) && (b < 127)) ifTrue { ascii = ascii + String fromBytes([b]) } ifFalse { ascii = ascii + "." }
+                j = j + 1
+            }
+
+            lines push(off + ": " + (groups join(" ") padRight(39, " ")) + "  " + ascii)
+            i = i + 16
+        }
+        lines join("\n")
+    }
 }

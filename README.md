@@ -1,17 +1,20 @@
 # hex
 
-TODO: what hex does.
+Hex encoding, decoding and hexdumps for byte strings
 
 ```clay
 import("hex")
 
-Hex greet("world") println      // Hello, world!
+Hex encode("Hello") println        // 48656c6c6f
+Hex decode("48656c6c6f") println   // Hello
+Hex dump(data) println             // xxd-style listing: offset, hex bytes, ASCII column
+
 ```
 
 ## Install
 
 ```sh
-clay bricks add github.com/YOU/hex
+clay bricks add github.com/mseminatore/clay-hex hex
 ```
 
 ## Develop

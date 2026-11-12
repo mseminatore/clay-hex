@@ -8,10 +8,43 @@ check = { |what, ok|
     ok ifFalse { ("FAIL: " + what) println; failures = failures + 1 }
 }
 
-check value("greet", (Hex greet("world")) == "Hello, world!")
+// helper for test cases that raise
+raises = { |block| try { block value; "no error" } catch { |e| e type } }
 
+plain = "Hello"
+encoded = "48656c6c6f"
+
+// test encoding
+check value("encode '${plain}'", (Hex encode(plain)) == encoded)
+check value("encode \"\"", (Hex encode("")) == "")
+check value("encode bytes", (Hex encode(String fromBytes([0, 255,16]))) == "00ff10")
+
+// round trip of all 256 byte patterns
+256 times { |i|
+    s = String fromBytes([i])
+    check value("round trip byte ${i}", (Hex decode(Hex encode(s))) == s)
+}
+
+// test decoding
+check value("decode '${encoded}'", (Hex decode(encoded)) == plain)
+check value("decode \"\"", (Hex decode("")) == "")
+check value("decode mixed case", (Hex decode("48656C6c6f")) == plain)
+
+// odd length and invalid digits raise. look at the raises helper from clay-ann
+check value("decode odd-length raises", (raises value({Hex decode("48F")})) == "RuntimeError")
+check value("decode invalid digit raises", (raises value({Hex decode("48G")})) == "RuntimeError")
+
+// test dump
+check value("dump empty", (Hex dump("")) == "")
+check value("dump short", (Hex dump("Hello")) == ("00000000: 4865 6c6c 6f" + (" " repeat(27)) + "  Hello"))
+dumped = Hex dump("The quick brown fox jumps over\n the lazy dog")
+check value("dump lines", (dumped split("\n") size) == 3)
+check value("dump second line", (dumped split("\n") at(1)) == "00000010: 666f 7820 6a75 6d70 7320 6f76 6572 0a20  fox jumps over. ")
+
+// check for success
 (failures > 0) ifTrue {
     (failures toString + " checks failed") println
     System exit(1)
 }
-"hex tests passed" println
+
+"Hex tests passed!" println
