@@ -5,81 +5,111 @@
 //
 //   Hex encode("Hello") println        // 48656c6c6f
 //   Hex decode("48656c6c6f") println   // Hello
-//   Hex dump(data) println             // xxd-style listing: offset, hex bytes, ASCII column
+//   Hex dump("Hello, world!") println  // 00000000: 4865 6c6c 6f2c 2077 6f72 6c64 21         Hello, world!
+//
+// A Clay String is a sequence of bytes, so these work on any data, NULs and
+// non-ASCII text included: Hex encode("é") is "c3a9". A wrong argument (not a
+// String) or bad hex raises a RuntimeError whose message says what was wrong.
 //
 // Every brick shares one set of top-level names with the program that imports
 // it, so keep yours few and distinctive: typically just the objects you provide.
+//
+// Note for readers: inside a method, passing arguments to another method of the
+// same object needs an explicit receiver, `self _hexByte(b)`. A bare
+// `_hexByte(b)` is not a call: it reads `_hexByte` and then evaluates `(b)`.
 
 Hex = Object clone {
 
     digits = "0123456789abcdef"
 
-    // text -> hex
-    encode(data) {
-        parts = []
-        
-        data bytes each { |b| 
-            parts push((digits slice(b / 16, b / 16 + 1)) + (digits slice( b % 16, b % 16 + 1)))
+    // raise unless data is a String; who names the calling method in the message
+    _need(data, who) {
+        (data type == "String") ifFalse {
+            raise("hex " + who + ": expects a String (got " + data type + ")")
         }
+    }
 
+    // one byte (0..255) -> its two hex digits
+    _hexByte(b) {
+        (digits slice(b / 16, b / 16 + 1)) + (digits slice(b % 16, b % 16 + 1))
+    }
+
+    // the 8-digit hex offset at the start of a dump line
+    _offset(n) {
+        (self _hexByte(n / 16777216 % 256)) + (self _hexByte(n / 65536 % 256)) +
+        (self _hexByte(n / 256 % 256)) + (self _hexByte(n % 256))
+    }
+
+    // byte string -> hex
+    encode(data) {
+        self _need(data, "encode")
+        parts = []
+        data bytes each { |b| parts push(self _hexByte(b)) }
         parts join("")
     }
 
-    // hex -> text
+    // hex -> byte string. Digits can be upper or lower case; spaces, tabs and
+    // line ends are skipped wherever they are ("48 65 6c", or a hex listing split
+    // over lines). Any other character is an error, reported at its position in
+    // the text you gave.
     decode(data) {
-        (data length % 2 != 0) ifTrue { raise("hex decode: odd-length input") }
+        self _need(data, "decode")
 
-        out = []
+        nibbles = []
         i = 0
         { i < data length } whileTrue {
-            hi = digits indexOf(data slice(i, i + 1) lower)
-            lo = digits indexOf(data slice(i + 1, i + 2) lower)
-            ((hi < 0) || (lo < 0)) ifTrue { raise("hex decode: invalid digit near position ${i}") }
-            out push(hi * 16 + lo)
-            i = i + 2
+            ch = data slice(i, i + 1)
+            (((ch == " ") || (ch == "\t")) || ((ch == "\n") || (ch == "\r"))) ifFalse {
+                nibble = digits indexOf(ch lower)
+                (nibble < 0) ifTrue { raise("hex decode: invalid digit at position ${i}") }
+                nibbles push(nibble)
+            }
+            i = i + 1
+        }
+        (nibbles size % 2 != 0) ifTrue { raise("hex decode: odd-length input") }
+
+        out = []
+        k = 0
+        { k < nibbles size } whileTrue {
+            out push((nibbles at(k)) * 16 + (nibbles at(k + 1)))
+            k = k + 2
         }
 
         String fromBytes(out)
     }
 
-    // dump hex data
-    // xxd-style listing: "00000000: 4865 6c6c 6f  Hello", 16 bytes per line
+    // an xxd-like listing, 16 bytes per line: 8-digit offset, the bytes in
+    // pairs, then the printable ASCII ("." for anything else)
+    //   00000000: 4865 6c6c 6f  Hello
     dump(data) {
-        bytes = data bytes
+        self _need(data, "dump")
+        values = data bytes
         lines = []
         i = 0
-        { i < bytes size } whileTrue {
-            end = i + 16
-            (end > bytes size) ifTrue { end = bytes size }
-            chunk = bytes slice(i, end)
+        { i < values size } whileTrue {
+            chunk = values slice(i, i + 16)
 
-            // 8-digit hex offset
-            off = ""
-            n = i
-            8 times { |k|
-                off = (digits slice(n % 16, n % 16 + 1)) + off
-                n = n / 16
-            }
-
-            // hex bytes in pairs, and the printable ASCII column
+            // the bytes as hex, two to a group
+            cells = chunk map { |b| self _hexByte(b) }
             groups = []
-            ascii = ""
             j = 0
-            { j < chunk size } whileTrue {
-                b = chunk at(j)
-                cell = (digits slice(b / 16, b / 16 + 1)) + (digits slice(b % 16, b % 16 + 1))
-                ((j % 2 == 0) && (j + 1 < chunk size)) ifTrue {
-                    c2 = chunk at(j + 1)
-                    cell = cell + (digits slice(c2 / 16, c2 / 16 + 1)) + (digits slice(c2 % 16, c2 % 16 + 1))
-                }
-                ((j % 2) == 0) ifTrue { groups push(cell) }
-                ((b >= 32) && (b < 127)) ifTrue { ascii = ascii + String fromBytes([b]) } ifFalse { ascii = ascii + "." }
-                j = j + 1
+            { j < cells size } whileTrue {
+                pair = cells at(j)
+                (j + 1 < cells size) ifTrue { pair = pair + (cells at(j + 1)) }
+                groups push(pair)
+                j = j + 2
             }
 
-            lines push(off + ": " + (groups join(" ") padRight(39, " ")) + "  " + ascii)
+            // the printable column
+            ascii = ""
+            chunk each { |b|
+                ascii = ascii + (((b >= 32) && (b < 127)) ifTrue { String fromBytes([b]) } ifFalse { "." })
+            }
+
+            lines push((self _offset(i)) + ": " + (groups join(" ") padRight(39, " ")) + "  " + ascii)
             i = i + 16
         }
+
         lines join("\n")
     }
 }
