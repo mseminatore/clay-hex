@@ -1,6 +1,7 @@
 {
   "name": "hex",
-  "version": "0.1.1",
+  "version": "0.2.0",
+  "clay": ">=0.3.3",
   "description": "Hex encoding, decoding and hexdumps for byte strings",
   "main": "src/main.clay",
   "deps": {}

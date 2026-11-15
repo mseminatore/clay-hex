@@ -36,15 +36,15 @@ Hex = Object clone {
 
     // the 8-digit hex offset at the start of a dump line
     _offset(n) {
-        (self _hexByte(n / 16777216 % 256)) + (self _hexByte(n / 65536 % 256)) +
-        (self _hexByte(n / 256 % 256)) + (self _hexByte(n % 256))
+        (_hexByte(n / 16777216 % 256)) + (_hexByte(n / 65536 % 256)) +
+        (_hexByte(n / 256 % 256)) + (_hexByte(n % 256))
     }
 
     // byte string -> hex
     encode(data) {
-        self _need(data, "encode")
+         _need(data, "encode")
         parts = []
-        data bytes each { |b| parts push(self _hexByte(b)) }
+        data bytes each { |b| parts push(_hexByte(b)) }
         parts join("")
     }
 
@@ -53,7 +53,7 @@ Hex = Object clone {
     // over lines). Any other character is an error, reported at its position in
     // the text you gave.
     decode(data) {
-        self _need(data, "decode")
+        _need(data, "decode")
 
         nibbles = []
         i = 0
@@ -82,7 +82,7 @@ Hex = Object clone {
     // pairs, then the printable ASCII ("." for anything else)
     //   00000000: 4865 6c6c 6f  Hello
     dump(data) {
-        self _need(data, "dump")
+        _need(data, "dump")
         values = data bytes
         lines = []
         i = 0
@@ -90,7 +90,7 @@ Hex = Object clone {
             chunk = values slice(i, i + 16)
 
             // the bytes as hex, two to a group
-            cells = chunk map { |b| self _hexByte(b) }
+            cells = chunk map { |b| _hexByte(b) }
             groups = []
             j = 0
             { j < cells size } whileTrue {
@@ -106,7 +106,7 @@ Hex = Object clone {
                 ascii = ascii + (((b >= 32) && (b < 127)) ifTrue { String fromBytes([b]) } ifFalse { "." })
             }
 
-            lines push((self _offset(i)) + ": " + (groups join(" ") padRight(39, " ")) + "  " + ascii)
+            lines push((_offset(i)) + ": " + (groups join(" ") padRight(39, " ")) + "  " + ascii)
             i = i + 16
         }
 

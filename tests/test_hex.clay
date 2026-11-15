@@ -9,8 +9,8 @@ check = { |what, ok|
 }
 
 // helpers for test cases that raise: the error's type, and its message
-raises = { |block| try { block value; "no error" } catch { |e| e type } }
-messageOf = { |block| try { block value; "no error" } catch { |e| e message } }
+raises = { |block| try { block(); "no error" } catch { |e| e type } }
+messageOf = { |block| try { block(); "no error" } catch { |e| e message } }
 
 plain = "Hello"
 encoded = "48656c6c6f"
@@ -21,99 +21,99 @@ allValues = []
 everyByte = String fromBytes(allValues)
 
 // --- encoding ---
-check value("encode '${plain}'", (Hex encode(plain)) == encoded)
-check value("encode \"\"", (Hex encode("")) == "")
-check value("encode bytes", (Hex encode(String fromBytes([0, 255,16]))) == "00ff10")
-check value("encode is lower case", (Hex encode(String fromBytes([171, 205, 239]))) == "abcdef")
-check value("encode non-ASCII text as its UTF-8 bytes", (Hex encode("é")) == "c3a9")
-check value("encode keeps NUL bytes", (Hex encode((String chr(0)) + "a" + (String chr(0)))) == "006100")
-check value("encode of every byte is 512 digits", (Hex encode(everyByte)) length == 512)
-check value("encode of every byte starts and ends right",
+check("encode '${plain}'", (Hex encode(plain)) == encoded)
+check("encode \"\"", (Hex encode("")) == "")
+check("encode bytes", (Hex encode(String fromBytes([0, 255,16]))) == "00ff10")
+check("encode is lower case", (Hex encode(String fromBytes([171, 205, 239]))) == "abcdef")
+check("encode non-ASCII text as its UTF-8 bytes", (Hex encode("é")) == "c3a9")
+check("encode keeps NUL bytes", (Hex encode((String chr(0)) + "a" + (String chr(0)))) == "006100")
+check("encode of every byte is 512 digits", (Hex encode(everyByte)) length == 512)
+check("encode of every byte starts and ends right",
             ((Hex encode(everyByte)) slice(0, 6)) == "000102" && ((Hex encode(everyByte)) slice(506, 512)) == "fdfeff")
 
 // round trip of all 256 byte patterns, one at a time and all together
 256 times { |i|
     s = String fromBytes([i])
-    check value("round trip byte ${i}", (Hex decode(Hex encode(s))) == s)
+    check("round trip byte ${i}", (Hex decode(Hex encode(s))) == s)
 }
-check value("round trip of one string holding every byte", (Hex decode(Hex encode(everyByte))) == everyByte)
+check("round trip of one string holding every byte", (Hex decode(Hex encode(everyByte))) == everyByte)
 
 // --- decoding ---
-check value("decode '${encoded}'", (Hex decode(encoded)) == plain)
-check value("decode \"\"", (Hex decode("")) == "")
-check value("decode mixed case", (Hex decode("48656C6c6f")) == plain)
-check value("decode upper case", (Hex decode("ABCDEF")) == (String fromBytes([171, 205, 239])))
-check value("decode \"00\" is one NUL byte", (Hex decode("00")) length == 1 && ((Hex decode("00")) byteAt(0)) == 0)
-check value("decode of non-ASCII bytes", (Hex decode("c3a9")) == "é")
+check("decode '${encoded}'", (Hex decode(encoded)) == plain)
+check("decode \"\"", (Hex decode("")) == "")
+check("decode mixed case", (Hex decode("48656C6c6f")) == plain)
+check("decode upper case", (Hex decode("ABCDEF")) == (String fromBytes([171, 205, 239])))
+check("decode \"00\" is one NUL byte", (Hex decode("00")) length == 1 && ((Hex decode("00")) byteAt(0)) == 0)
+check("decode of non-ASCII bytes", (Hex decode("c3a9")) == "é")
 
 // odd length and invalid digits raise, with a message that says why
-check value("decode odd-length raises", (raises value({Hex decode("48F")})) == "RuntimeError")
-check value("decode odd-length message", ((messageOf value({Hex decode("48F")})) contains("odd-length")))
-check value("decode invalid digit raises", (raises value({Hex decode("48GG")})) == "RuntimeError")
-check value("decode invalid digit message names the position",
-            (messageOf value({Hex decode("48GG")})) == "hex decode: invalid digit at position 2")
-check value("decode invalid second digit of a pair",
-            (messageOf value({Hex decode("4G")})) == "hex decode: invalid digit at position 1")
-check value("decode reports a bad digit before an odd length",
-            (messageOf value({Hex decode("48G")})) == "hex decode: invalid digit at position 2")
-check value("decode rejects other characters", (raises value({Hex decode("48,65")})) == "RuntimeError")
-check value("decode rejects non-ASCII text", (messageOf value({Hex decode("é9")})) == "hex decode: invalid digit at position 0")
+check("decode odd-length raises", (raises({Hex decode("48F")})) == "RuntimeError")
+check("decode odd-length message", ((messageOf({Hex decode("48F")})) contains("odd-length")))
+check("decode invalid digit raises", (raises({Hex decode("48GG")})) == "RuntimeError")
+check("decode invalid digit message names the position",
+            (messageOf({Hex decode("48GG")})) == "hex decode: invalid digit at position 2")
+check("decode invalid second digit of a pair",
+            (messageOf({Hex decode("4G")})) == "hex decode: invalid digit at position 1")
+check("decode reports a bad digit before an odd length",
+            (messageOf({Hex decode("48G")})) == "hex decode: invalid digit at position 2")
+check("decode rejects other characters", (raises({Hex decode("48,65")})) == "RuntimeError")
+check("decode rejects non-ASCII text", (messageOf({Hex decode("é9")})) == "hex decode: invalid digit at position 0")
 
 // spaces, tabs and line ends are skipped wherever they are
-check value("decode skips spaces between bytes", (Hex decode("48 65 6c 6c 6f")) == plain)
-check value("decode skips a space inside a byte", (Hex decode("4 8")) == "H")
-check value("decode skips tabs and line ends", (Hex decode("48\t65\r\n6c\n6c 6f")) == plain)
-check value("decode skips leading and trailing whitespace", (Hex decode("  48  \n")) == "H")
-check value("decode of only whitespace is empty", (Hex decode(" \n\t ")) == "")
-check value("decode counts whitespace in an error position",
-            (messageOf value({Hex decode("4 8G")})) == "hex decode: invalid digit at position 3")
-check value("decode counts the digits, not the characters, for an odd length",
-            (messageOf value({Hex decode("4 8 6")})) == "hex decode: odd-length input")
-check value("decode of a multi-line listing of digits", (Hex decode("48656c\n6c6f")) == plain)
+check("decode skips spaces between bytes", (Hex decode("48 65 6c 6c 6f")) == plain)
+check("decode skips a space inside a byte", (Hex decode("4 8")) == "H")
+check("decode skips tabs and line ends", (Hex decode("48\t65\r\n6c\n6c 6f")) == plain)
+check("decode skips leading and trailing whitespace", (Hex decode("  48  \n")) == "H")
+check("decode of only whitespace is empty", (Hex decode(" \n\t ")) == "")
+check("decode counts whitespace in an error position",
+            (messageOf({Hex decode("4 8G")})) == "hex decode: invalid digit at position 3")
+check("decode counts the digits, not the characters, for an odd length",
+            (messageOf({Hex decode("4 8 6")})) == "hex decode: odd-length input")
+check("decode of a multi-line listing of digits", (Hex decode("48656c\n6c6f")) == plain)
 
 // the wrong kind of argument says what was expected
-check value("encode of a number", (messageOf value({Hex encode(5)})) == "hex encode: expects a String (got Number)")
-check value("encode of nil", (messageOf value({Hex encode(nil)})) == "hex encode: expects a String (got Nil)")
-check value("decode of a number", (messageOf value({Hex decode(5)})) == "hex decode: expects a String (got Number)")
-check value("dump of an array", (messageOf value({Hex dump([1, 2])})) == "hex dump: expects a String (got Array)")
-check value("wrong argument is a RuntimeError", (raises value({Hex encode(5)})) == "RuntimeError")
+check("encode of a number", (messageOf({Hex encode(5)})) == "hex encode: expects a String (got Number)")
+check("encode of nil", (messageOf({Hex encode(nil)})) == "hex encode: expects a String (got Nil)")
+check("decode of a number", (messageOf({Hex decode(5)})) == "hex decode: expects a String (got Number)")
+check("dump of an array", (messageOf({Hex dump([1, 2])})) == "hex dump: expects a String (got Array)")
+check("wrong argument is a RuntimeError", (raises({Hex encode(5)})) == "RuntimeError")
 
 // --- dump ---
-check value("dump empty", (Hex dump("")) == "")
-check value("dump short", (Hex dump("Hello")) == ("00000000: 4865 6c6c 6f" + (" " repeat(27)) + "  Hello"))
+check("dump empty", (Hex dump("")) == "")
+check("dump short", (Hex dump("Hello")) == ("00000000: 4865 6c6c 6f" + (" " repeat(27)) + "  Hello"))
 dumped = Hex dump("The quick brown fox jumps over\n the lazy dog")
-check value("dump lines", (dumped split("\n") size) == 3)
-check value("dump second line", (dumped split("\n") at(1)) == "00000010: 666f 7820 6a75 6d70 7320 6f76 6572 0a20  fox jumps over. ")
+check("dump lines", (dumped split("\n") size) == 3)
+check("dump second line", (dumped split("\n") at(1)) == "00000010: 666f 7820 6a75 6d70 7320 6f76 6572 0a20  fox jumps over. ")
 
 // exactly one full line, then one byte over
 line16 = Hex dump("0123456789abcdef")
-check value("dump of exactly 16 bytes is one line", (line16 split("\n") size) == 1)
-check value("dump of 16 bytes",
+check("dump of exactly 16 bytes is one line", (line16 split("\n") size) == 1)
+check("dump of 16 bytes",
             line16 == "00000000: 3031 3233 3435 3637 3839 6162 6364 6566  0123456789abcdef")
 line17 = (Hex dump("0123456789abcdefg")) split("\n")
-check value("dump of 17 bytes is two lines", line17 size == 2)
-check value("dump of 17 bytes: the second line holds one byte",
+check("dump of 17 bytes is two lines", line17 size == 2)
+check("dump of 17 bytes: the second line holds one byte",
             (line17 at(1)) == ("00000010: 67" + (" " repeat(37)) + "  g"))
 
 // bytes that are not printable show as dots; space and ~ are printable
-check value("dump of non-printable bytes",
+check("dump of non-printable bytes",
             (Hex dump(String fromBytes([0, 31, 32, 126, 127, 255]))) ==
             ("00000000: 001f 207e 7fff" + (" " repeat(25)) + "  .. ~.."))
 
 // offsets: the digits carry past 0xff, and past 0xffff
 zeros300 = (Hex dump((String chr(0)) repeat(300))) split("\n")
-check value("dump of 300 bytes has 19 lines", zeros300 size == 19)
-check value("dump offset 0x100", (zeros300 at(16)) startsWith("00000100: "))
-check value("dump offset 0x120", (zeros300 at(18)) startsWith("00000120: "))
+check("dump of 300 bytes has 19 lines", zeros300 size == 19)
+check("dump offset 0x100", (zeros300 at(16)) startsWith("00000100: "))
+check("dump offset 0x120", (zeros300 at(18)) startsWith("00000120: "))
 zeros70000 = (Hex dump((String chr(0)) repeat(70000))) split("\n")
-check value("dump of 70000 bytes has 4375 lines", zeros70000 size == 4375)
-check value("dump offset 0x11160 on the last line", (zeros70000 at(4374)) startsWith("00011160: "))
-check value("dump offset 0x10000", (zeros70000 at(4096)) startsWith("00010000: "))
+check("dump of 70000 bytes has 4375 lines", zeros70000 size == 4375)
+check("dump offset 0x11160 on the last line", (zeros70000 at(4374)) startsWith("00011160: "))
+check("dump offset 0x10000", (zeros70000 at(4096)) startsWith("00010000: "))
 
 // dump shows what encode would, byte for byte
 dumpAll = (Hex dump(everyByte)) split("\n")
-check value("dump of every byte: 16 lines", dumpAll size == 16)
-check value("dump of every byte: the first and last bytes",
+check("dump of every byte: 16 lines", dumpAll size == 16)
+check("dump of every byte: the first and last bytes",
             (dumpAll at(0)) startsWith("00000000: 0001 0203 ") && (dumpAll at(15)) startsWith("000000f0: f0f1 f2f3 ") &&
             (dumpAll at(15)) contains("fcfd feff"))
 
